@@ -14,6 +14,7 @@
     arc.appendTo(canvas);
   });
   const raphyahsMainPage = new TextBox('R', 32 / 4, 32 / 8, 32).config(textbox => {
+    textbox.color = 0xFFFFFF;
     textbox.font.family = 'monospace';
     textbox.baseline = 'top';
     textbox.appendTo(canvas);
