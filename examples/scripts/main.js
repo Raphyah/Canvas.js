@@ -9,7 +9,7 @@
     arc.type = 'fill';
     arc.lineToCenter = false;
     arc.whenLeftClicked = function() {
-      window.open('https://raphyah.github.io/');
+      window.open('https://raphyah.github.io/', '_self');
     }
     arc.appendTo(canvas);
   });
