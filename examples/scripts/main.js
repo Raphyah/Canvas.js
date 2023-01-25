@@ -20,7 +20,7 @@
     textbox.appendTo(canvas);
   });
   const title = new TextBox('Canvas.js Example', 32, 0, 32).config(textbox => {
-    textbox.color = 0xFFFFFF;
+    textbox.color = 0;
     textbox.baseline = 'top';
     textbox.appendTo(canvas);
   });
