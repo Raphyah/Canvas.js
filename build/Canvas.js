@@ -301,9 +301,10 @@ const Canvas = (function () {
         * @param {Viewer} element The Canvas to be checked.
         */
       emitOver() {
+        const co = this.details.pointer;
         ClickableObject.list.forEach((value) => {
           if (value.isUnder() && value.whenPointerOver) {
-            value.whenPointerOver();
+            value.whenPointerOver(co);
           }
         });
       }
@@ -458,6 +459,27 @@ const Canvas = (function () {
           Color.fromInt(this.color) :
           Color.fromInt(hoverValue);
       }
+
+      hit(target) {
+        if (this.canvas === target.canvas) {
+          const sLeft   = this.x,
+                sRight  = this.x + this.width,
+                sTop    = this.y,
+                sBottom = this.y + this.height;
+          const tLeft   = target.x,
+                tRight  = target.x + target.width,
+                tTop    = target.y,
+                tBottom = target.y + target.height;
+          let collision = true;
+          if ((sBottom < tTop) ||
+            (sTop > tBottom) ||
+            (sRight < tLeft) ||
+            (sLeft > tRight)) {
+              collision = false;
+            }
+          return  collision;
+        }
+      }
     }
     /**
       * Creates a new ClickableObject.
@@ -527,26 +549,6 @@ const Canvas = (function () {
         return this.isUnder(element) &&
           posNotUndefined &&
           initPos && finalPos;
-      }
-      hit(target) {
-        if (this.canvas === target.canvas) {
-          const sLeft   = this.x,
-                sRight  = this.x + this.width,
-                sTop    = this.y,
-                sBottom = this.y + this.height;
-          const tLeft   = target.x,
-                tRight  = target.x + target.width,
-                tTop    = target.y,
-                tBottom = target.y + target.height;
-          let collision = true;
-          if ((sBottom < tTop) ||
-            (sTop > tBottom) ||
-            (sRight < tLeft) ||
-            (sLeft > tRight)) {
-              collision = false;
-            }
-          return  collision;
-        }
       }
     }
     /**
