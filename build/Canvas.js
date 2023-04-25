@@ -36,6 +36,9 @@ const Canvas = (function () {
         */
       clear() {
         this.context.clearRect(0, 0, this.width, this.height);
+        this.children.forEach(element => {
+          element.propagateClear();
+        });
       }
       /**
         * Adds a new EventListener to "canvas.dom".
@@ -253,24 +256,30 @@ const Canvas = (function () {
       emitClick(evt) {
         const co = this.details.pointer;
         ClickableObject.list.forEach((value) => {
+          if (value.lastTimeRendered > 1) return false;
           if (value.wasClicked(this)) {
-            if (evt.button === 0) { // Left click
-              if (value.whenLeftClicked &&
-                value.whenLeftClicked.constructor === Function) {
-                value.whenLeftClicked(co);
-              }
-            }
-            else if (evt.button === 1) { // Wheel click
-              if (value.whenWheelClicked &&
-                value.whenWheelClicked.constructor === Function) {
-                value.whenWheelClicked(co);
-              }
-            }
-            else if (evt.button === 2) { // Right click
-              if (value.whenRightClicked &&
-                value.whenRightClicked.constructor === Function) {
-                value.whenRightClicked(co);
-              }
+            switch (evt.button) {
+              case 0: // Left click
+                if (value.whenLeftClicked &&
+                  value.whenLeftClicked.constructor === Function) {
+                  value.whenLeftClicked(co);
+                }
+                break;
+              case 1: // Wheel click
+                if (value.whenWheelClicked &&
+                  value.whenWheelClicked.constructor === Function) {
+                  value.whenWheelClicked(co);
+                }
+                break;
+              case 2: // Right click
+                if (value.whenRightClicked &&
+                  value.whenRightClicked.constructor === Function) {
+                  value.whenRightClicked(co);
+                }
+                break;
+              default:
+                console.error('A button was clicked but it was not a left, right or wheel click.')
+                break;
             }
           }
         });
@@ -283,6 +292,7 @@ const Canvas = (function () {
       emitTouch(evt) {
         const co = this.details.pointer;
         ClickableObject.list.forEach((value) => {
+          if (value.lastTimeRendered > 1) return false;
           if (value.wasClicked(this)) {
             if (evt.touches) { // Left click
               if (value.whenTouched &&
@@ -303,6 +313,7 @@ const Canvas = (function () {
       emitOver() {
         const co = this.details.pointer;
         ClickableObject.list.forEach((value) => {
+          if (value.lastTimeRendered > 1) return false;
           if (value.isUnder() && value.whenPointerOver) {
             value.whenPointerOver(co);
           }
@@ -316,6 +327,7 @@ const Canvas = (function () {
         */
       emitNotOver(element) {
         ClickableObject.list.forEach((value) => {
+          if (value.lastTimeRendered > 1) return false;
           if (!value.isUnder() && value.whenPointerNotOver) {
             value.whenPointerNotOver();
           }
@@ -369,7 +381,15 @@ const Canvas = (function () {
         this.width = width;
         this.height = height;
         this.color = 0;
+        this.lastTimeRendered = 2;
+        this.maxTimeWithoutRendering = 65535;
         CanvasObject.list.push(this);
+      }
+
+      propagateClear() {
+        if (this.lastTimeRendered < this.maxTimeWithoutRendering) {
+          this.lastTimeRendered++;
+        }
       }
 
       /**
@@ -393,11 +413,12 @@ const Canvas = (function () {
 
       /**
         * Adds a canvas to this and sets this to canvas.
-        * @param {Canvas} canvas The canvas to be added.
+        * @param {Canvas} parent The canvas to be added.
         */
-      appendTo(canvas) {
-        this.defineCanvas(canvas);
-        canvas.addChild(this);
+      appendTo(parent) {
+        if (parent.constructor === Viewer) this.defineCanvas(parent);
+        else if (parent.constructor === ObjectSet) this.defineCanvas(parent.canvas);
+        parent.addChild(this);
       }
       /**
         * Adds a canvas to this object.
@@ -431,6 +452,7 @@ const Canvas = (function () {
         * @param {Canvas} canvas a
         */
       render(canvas) {
+        this.lastTimeRendered = 0;
         const ctx = canvas.context;
         const useHoverColor = this.isUnder() && this.hoverEffect !== false;
         let hoverValue;
@@ -1025,6 +1047,7 @@ const Canvas = (function () {
         * Render to the scene.
         */
       render() {
+        this.lastTimeRendered = 0;
         if (!this.canvas) return;
         const ctx = this.canvas.context;
         ctx.save();
@@ -1105,6 +1128,54 @@ const Canvas = (function () {
       }
     }
 
+    class ObjectSet extends CanvasObject {
+      static list = [];
+      constructor() {
+        super();
+        this.children = [];
+        ObjectSet.list.push(this);
+      }
+
+      propagateClear() {
+        this.children.forEach(element => {
+          element.propagateClear();
+        });
+      }
+      /**
+        * Adds a new element to the canvas and this canvas to the element.
+        * @param {CanvasObject} element The canvas object to be added to the scene.
+        */
+      add(...elements) {
+        elements.forEach(element => {
+          if (element instanceof CanvasObject) {
+            this.addChild(element);
+            element.defineCanvas(this);
+          }
+        });
+      }
+      /**
+        * Adds a new element to the canvas.
+        * @param {CanvasObject} element The canvas object to be added to the scene.
+        */
+      addChild(element) {
+        this.children.push(element);
+      }
+
+      /**
+        * Search for a child canvas object on this canvas.
+        * @param {CanvasObject} child The canvas object to be found.
+        * @return {CanvasObject} The found canvas object.
+        */
+      getChild(child) {
+        return this.children.find((value) => value == child);
+      }
+      render() {
+        this.children.forEach(element => {
+          element.render();
+        });
+      }
+    }
+
     return {
       Viewer,
       CanvasObject,
@@ -1113,6 +1184,7 @@ const Canvas = (function () {
       Rect,
       Arc,
       TextBox,
-      CanvasImage
+      CanvasImage,
+      ObjectSet
     }
 })();
