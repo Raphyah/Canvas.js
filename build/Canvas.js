@@ -15,6 +15,36 @@
   */
 const Canvas = (function () {
   /**
+   * Functions that are going to be used by multiple classes.
+   * __add(...elements) is used for Viewer and ObjectSet.
+   * __renderSet() is used for Viewer and ObjectSet.
+   */
+  /**
+   * Adds a new element to the canvas and this canvas to the element.
+   * @param {CanvasObject} element The canvas object to be added to the scene.
+   */
+  function __add(...elements) {
+    elements.forEach(element => {
+      if (element instanceof CanvasObject) {
+        this.addChild(element);
+        element.defineCanvas(this);
+      }
+    });
+  }
+  /**
+   * Render items to the canvas.
+   */
+  function __renderSet() {
+    this.children.forEach(element => {
+      if ((element.x + element.width) >= 0 && (element.y + element.height) >= 0 &&
+        (element.x) <= this.canvas.width && (element.y) <= this.canvas.height) {
+        element.render();
+      } else {
+        console.warn('not rendering an element.')
+      }
+    });
+  }
+  /**
   * Create a new "Viewer".
   */
     class Viewer {
@@ -30,6 +60,7 @@ const Canvas = (function () {
         this.contextType = contextType;
         this.context = this.dom.getContext(contextType);
         if (startEvents) this.listenToEvents();
+        this.canvas = this;
       }
       /**
         * Clears the entire canvas.
@@ -97,18 +128,6 @@ const Canvas = (function () {
       }
 
       /**
-        * Adds a new element to the canvas and this canvas to the element.
-        * @param {CanvasObject} element The canvas object to be added to the scene.
-        */
-      add(...elements) {
-        elements.forEach(element => {
-          if (element instanceof CanvasObject) {
-            this.addChild(element);
-            element.defineCanvas(this);
-          }
-        });
-      }
-      /**
         * Adds a new element to the canvas.
         * @param {CanvasObject} element The canvas object to be added to the scene.
         */
@@ -143,11 +162,11 @@ const Canvas = (function () {
 
           this.details.pointer.initPos.x =
             this.details.pointer.currentPos.x =
-            touch.clientX * (this.width / this.dom.offsetWidth);
+            touch.clientX * (this.width / canvas.offsetWidth);
 
           this.details.pointer.initPos.y =
             this.details.pointer.currentPos.y =
-            touch.clientY * (this.height / this.dom.offsetHeight);
+            touch.clientY * (this.height / canvas.offsetHeight);
         });
         canvas.addEventListener('touchmove', (evt) => {
           evt.preventDefault();
@@ -155,9 +174,9 @@ const Canvas = (function () {
           const touch = evt.touches[0];
 
           this.details.pointer.currentPos.x =
-            touch.clientX * (this.width / this.dom.offsetWidth);
+            touch.clientX * (this.width / canvas.offsetWidth);
           this.details.pointer.currentPos.y =
-            touch.clientY * (this.height / this.dom.offsetHeight);
+            touch.clientY * (this.height / canvas.offsetHeight);
         });
         canvas.addEventListener('touchend', (evt) => {
           evt.preventDefault();
@@ -174,17 +193,17 @@ const Canvas = (function () {
           this.details.pointer.start = Date.now();
 
           this.details.pointer.initPos.x =
-            evt.offsetX * (this.width / this.dom.offsetWidth);
+            evt.offsetX * (this.width / canvas.offsetWidth);
 
           this.details.pointer.initPos.y =
-            evt.offsetY * (this.height / this.dom.offsetHeight);
+            evt.offsetY * (this.height / canvas.offsetHeight);
         });
         canvas.addEventListener('mousemove', (evt) => {
           // console.log(evt.offsetX * (canvas.width / canvas.dom.offsetWidth));
           this.details.pointer.currentPos.x =
-            evt.offsetX * (this.width / this.dom.offsetWidth);
+            evt.offsetX * (this.width / canvas.offsetWidth);
           this.details.pointer.currentPos.y =
-            evt.offsetY * (this.height / this.dom.offsetHeight);
+            evt.offsetY * (this.height / canvas.offsetHeight);
         });
         canvas.addEventListener('mouseup', (evt) => {
           this.details.pointer.end = Date.now();
@@ -211,7 +230,7 @@ const Canvas = (function () {
         // Context events
         canvas.addEventListener('contextmenu', evt => {
           if (!this.forceContextDefault) evt.preventDefault();
-        })
+        });
 
         const realTimeUpdate = () => {
           this.emitOver(canvas);
@@ -355,13 +374,15 @@ const Canvas = (function () {
           }
         })
       }
-
-      render() {
-        this.children.forEach(element => {
-          element.render();
-        });
-      }
     }
+    Object.defineProperties(Viewer.prototype, {
+      add: {
+        value: __add
+      },
+      render: {
+        value: __renderSet
+      }
+    });
     /**
       * Create a new "CanvasObject".
       */
@@ -412,9 +433,9 @@ const Canvas = (function () {
       }
 
       /**
-        * Adds a canvas to this and sets this to canvas.
-        * @param {Canvas} parent The canvas to be added.
-        */
+       * Adds a canvas to this and sets this to canvas.
+       * @param {Canvas} parent The canvas to be added.
+       */
       appendTo(parent) {
         if (parent.constructor === Viewer) this.defineCanvas(parent);
         else if (parent.constructor === ObjectSet) this.defineCanvas(parent.canvas);
@@ -667,7 +688,7 @@ const Canvas = (function () {
         * @param {Array} value a
         * @return {Array} a
         */
-      static fixColor(value) {
+      static fixColor(value = {red: 0, green: 0, blue: 0}) {
         for (const x of ['red', 'green', 'blue']) {
           if (value[x] < 0) value[x] = 0;
         }
@@ -861,10 +882,23 @@ const Canvas = (function () {
         ctx.beginPath();
         if (this.lineToCenter) ctx.lineTo(this.x, this.y);
         const startFrom = this.startFrom.constructor === String ? this.startFrom.toLowerCase() : this.startFrom;
-        let offset =  startFrom === 'bottom' ? Math.PI * 0.5 :
-                      startFrom === 'left' ? Math.PI :
-                      startFrom === 'top' ? Math.PI * -0.5 :
-                      startFrom.constructor === Number ? startFrom : 0;
+        let offset = 0;
+        switch (startFrom) {
+          case 'bottom':
+            offset = Math.PI * 0.5;
+            break;
+          case 'left':
+            offset = Math.PI;
+            break;
+          case 'top':
+            offset = Math.PI * -0.5;
+            break;
+          default:
+            if (startFrom.constructor === Number) {
+              offset = startFrom;
+            }
+            break;
+        }
         ctx.arc(this.x, this.y,
           this.radius + (this.type === 'fill' ? this.lineWidth / 2 : 0),
           offset + this.start, offset + this.end);
@@ -877,6 +911,7 @@ const Canvas = (function () {
       * Used to create a new TextBox
       */
     class TextBox extends ClickableObject {
+      #offscr_ctx = new OffscreenCanvas(0, 0).getContext('2d');
       /**
         * Initialize the objects.
         * @param {String} text The text to be displayed.
@@ -886,7 +921,7 @@ const Canvas = (function () {
         * @param {Function} callback The settings callback.
         */
       constructor(text, x, y, fontSize = 10) {
-        super(x, y, undefined, fontSize);
+        super(x, y);
         this.text = text;
         this.type = 'fill';
         this.font = {
@@ -895,7 +930,39 @@ const Canvas = (function () {
         };
         this.baseline = 'alphabetic';
         this.align = 'start';
-        this.width = this.getWidth();
+      }
+
+      set width(width) { }
+      get width() {
+        return this.getWidth();
+      }
+      set height(height) { }
+      get height() {
+        return this.font.size;
+      }
+
+      getTrueXPos() {
+        const ctx = this.#offscr_ctx;
+        ctx.save();
+        ctx.restore();
+      }
+      getTrueYPos() {
+        const ctx = this.#offscr_ctx;
+        ctx.save();
+        ctx.font = `${this.font.size}px ${this.font.family}`;
+        ctx.textBaseline = this.baseline;
+        const metrics = ctx.measureText(this.text);
+        let y = this.y;
+        if (this.baseline !== 'top') {
+          y -= metrics.fontBoundingBoxAscent;
+          if (this.baseline === 'ideographic') {
+            y += metrics.fontBoundingBoxDescent;
+          } else if (this.baseline === 'bottom') {
+            y += metrics.actualBoundingBoxDescent / 2;
+          }
+        }
+        ctx.restore();
+        return y;
       }
 
       /**
@@ -903,14 +970,12 @@ const Canvas = (function () {
         * @return {Number} The total width.
         */
       getWidth() {
-        const ctx = new OffscreenCanvas(0, 0).getContext('2d');
+        const ctx = this.#offscr_ctx;
         ctx.save();
         ctx.font = `${this.font.size}px ${this.font.family}`;
-        ctx.textBaseline = this.baseline;
-        ctx.textAlign = this.align;
-        this.width = ctx.measureText(this.text).width;
+        const width = ctx.measureText(this.text).width;
         ctx.restore();
-        return this.width;
+        return width;
       }
 
       /**
@@ -922,7 +987,7 @@ const Canvas = (function () {
       }
 
       __getHeight() {
-        const canvas = new OffscreenCanvas(0, 0);
+        const canvas = this.#offscr_ctx;
         const ctx = canvas.getContext('2d');
         ctx.save();
         ctx.font = `${this.font.size}px ${this.font.family}`;
@@ -954,27 +1019,23 @@ const Canvas = (function () {
         const posNotUndefined = details.currentPos.x != undefined &&
           details.currentPos.y != undefined;
 
-        const y = this.y +
+        /*const y = this.y +
         (this.baseline === 'top'        ? 0                     :
          this.baseline === 'hanging'    ? -this.getHeight() / 4 :
          this.baseline === 'middle'     ? -this.getHeight() / 2 :
          this.baseline === 'alphabetic' ? -this.getHeight()     :
-                                          -this.getHeight());
-        const height = y + this.getHeight();
-        this.align;
+                                          -this.getHeight());*/
+        const y = this.getTrueYPos();
+        const height = this.getHeight();
 
         return this.getCanvas() &&
           posNotUndefined &&
           details.currentPos.x >= this.x &&
           details.currentPos.y >= y &&
           details.currentPos.x <= this.x + this.width &&
-          details.currentPos.y <= height;
+          details.currentPos.y <= y + height;
       }
-      /**
-       * Check if use has clicked/touched something.
-       * @param {Viewer} element The Canvas to be checked.
-       * @return {Boolean} A boolean checking if there's anything below the pointer.
-       */
+
       wasClicked(element) {
         if (!this.canvas) return;
         const canvas = this.canvas;
@@ -983,20 +1044,22 @@ const Canvas = (function () {
         const posNotUndefined = details.initPos.x != undefined &&
           details.initPos.y != undefined;
 
+        const y = this.getTrueYPos();
+
         const initPos = details.initPos.x >= this.x &&
-          details.initPos.y >= this.y &&
+          details.initPos.y >= y &&
           details.initPos.x <= this.x + this.width &&
-          details.initPos.y <= this.y + this.height;
+          details.initPos.y <= y + this.height;
         const finalPos = details.finalPos.x >= this.x &&
-          details.finalPos.y >= this.y &&
+          details.finalPos.y >= y &&
           details.finalPos.x <= this.x + this.width &&
-          details.finalPos.y <= this.y + this.height;
+          details.finalPos.y <= y + this.height;
 
         return this.isUnder(element) &&
           posNotUndefined &&
           initPos && finalPos;
       }
-
+      
       /**
         * Render to the scene.
         */
@@ -1111,6 +1174,7 @@ const Canvas = (function () {
 
     class Path extends ClickableObject {
       constructor() {
+        super();
         this.path = [];
       }
       add(...elements) {
@@ -1124,14 +1188,14 @@ const Canvas = (function () {
     }
     class Line extends ClickableObject {
       constructor(x, y, width, height) {
-        // 
+        super(x, y, width, height);
       }
     }
 
     class ObjectSet extends CanvasObject {
       static list = [];
-      constructor() {
-        super();
+      constructor(x, y) {
+        super(x, y);
         this.children = [];
         ObjectSet.list.push(this);
       }
@@ -1139,18 +1203,6 @@ const Canvas = (function () {
       propagateClear() {
         this.children.forEach(element => {
           element.propagateClear();
-        });
-      }
-      /**
-        * Adds a new element to the canvas and this canvas to the element.
-        * @param {CanvasObject} element The canvas object to be added to the scene.
-        */
-      add(...elements) {
-        elements.forEach(element => {
-          if (element instanceof CanvasObject) {
-            this.addChild(element);
-            element.defineCanvas(this);
-          }
         });
       }
       /**
@@ -1169,12 +1221,16 @@ const Canvas = (function () {
       getChild(child) {
         return this.children.find((value) => value == child);
       }
-      render() {
-        this.children.forEach(element => {
-          element.render();
-        });
-      }
     }
+
+    Object.defineProperties(ObjectSet.prototype, {
+      add: {
+        value: __add
+      },
+      render: {
+        value: __renderSet
+      }
+    });
 
     return {
       Viewer,
