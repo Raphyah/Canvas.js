@@ -220,11 +220,20 @@ const Canvas = (function () {
 
         // Keyboard events
         canvas.addEventListener('keydown', evt => {
-          this.details.keyboard.keys[evt.key] = true;
+          if (!this.details.keyboard.keys[evt.key]) {
+            this.details.keyboard.keys[evt.key] = true;
+            this.details.keyboard.keysPressed++;
+          }
         });
         canvas.addEventListener('keyup', evt => {
-          this.details.keyboard.keys[evt.key] = false;
-          this.emitKeyRelease(evt.key);
+          if (this.details.keyboard.keys[evt.key]) {
+            this.details.keyboard.keys[evt.key] = false;
+            this.details.keyboard.keysPressed--;
+            if (this.details.keyboard.keysPressed < 0) {
+              this.details.keyboard.keysPressed = 0;
+            }
+          }
+          this.emitKeyRelease(evt);
         });
 
         // Context events
@@ -235,7 +244,7 @@ const Canvas = (function () {
         const realTimeUpdate = () => {
           this.emitOver(canvas);
           this.emitNotOver(canvas);
-          this.emitKeyPress();
+          if (this.details.keyboard.keysPressed) this.emitKeyPress();
           requestAnimationFrame(realTimeUpdate);
         };
         requestAnimationFrame(realTimeUpdate);
@@ -244,6 +253,7 @@ const Canvas = (function () {
 
       details = {
         keyboard: {
+          keysPressed: 0,
           keys: {},
         },
         pointer: {
@@ -359,18 +369,18 @@ const Canvas = (function () {
        */
       emitKeyPress() {
         CanvasObject.list.forEach(value => {
-          if (value.whenKeyPressed) {
-            value.whenKeyPressed(this.details.keyboard.keys);
+          if (this.whenKeyPressed) {
+            this.whenKeyPressed(this.details.keyboard.keys);
           }
         })
       }
       /**
        * Emit keyboard keyup event
        */
-      emitKeyRelease(key) {
+      emitKeyRelease(evt) {
         CanvasObject.list.forEach(value => {
-          if (value.whenKeyReleased) {
-            value.whenKeyReleased(key);
+          if (this.whenKeyReleased) {
+            this.whenKeyReleased(evt.key);
           }
         })
       }
@@ -613,7 +623,7 @@ const Canvas = (function () {
         * @return {Object} a
         */
       static hexToObject(value) {
-        let red; let green; let blue; let alpha;
+        let red, green, blue, alpha;
         const hex = new RegExp('#' +
           '([0-9a-fA-F]{2})' +
           '([0-9a-fA-F]{2})' +
@@ -639,25 +649,22 @@ const Canvas = (function () {
       static rgbToObject(value) {
         let red; let green; let blue; let alpha;
 
-        const rgb = new RegExp(
-          'rgba? *' +
-          '\( *' +
-          '(25[0-5]|2[0-4]\d|1?\d?\d)' +
-          ' *, *' +
-          '(25[0-5]|2[0-4]\d|1?\d?\d)' +
-          ' *, *' +
-          '(25[0-5]|2[0-4]\d|1?\d?\d)' +
-          '(?: *, *' +
-          '(1|0(?:\.\d+)?)' +
-          ')? *\)');
-
+        const rgb = /^rgba?\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})(?:\s*,\s*(1|0?\.\d+))?\s*\)$/;
         if (rgb.test(value)) {
           const captured = value.match(rgb);
 
           red = parseInt(captured[1]);
+          if (red > 255) red = 255;
+          else if (red < 0) red = 0;
           green = parseInt(captured[2]);
+          if (green > 255) green = 255;
+          else if (green < 0) green = 0;
           blue = parseInt(captured[3]);
+          if (blue > 255) blue = 255;
+          else if (blue < 0) blue = 0;
           alpha = parseFloat(captured[4] || 1);
+          if (alpha > 1) alpha = 1;
+          else if (alpha < 0) alpha = 0;
         } else return false;
 
         return { red, green, blue, alpha };
@@ -689,10 +696,16 @@ const Canvas = (function () {
         * @return {Array} a
         */
       static fixColor(value = {red: 0, green: 0, blue: 0}) {
-        for (const x of ['red', 'green', 'blue']) {
-          if (value[x] < 0) value[x] = 0;
+        const obj = {};
+        for (const x in value) {
+          if (value[x] < 0) obj[x] = 0;
+          else if (['red', 'green', 'blue'].includes(x) && value[x] > 255) {
+            obj[x] = 255;
+          } else if (x === 'alpha' && value[x] > 1) {
+            obj[x] = 1;
+          } else obj[x] = value[x];
         }
-        return value;
+        return obj;
       }
       /**
         * Get color from value.
@@ -911,7 +924,8 @@ const Canvas = (function () {
       * Used to create a new TextBox
       */
     class TextBox extends ClickableObject {
-      #offscr_ctx = new OffscreenCanvas(0, 0).getContext('2d');
+      #offscr_canvas = new OffscreenCanvas(0, 0);
+      #offscr_ctx = this.#offscr_canvas.getContext('2d');
       /**
         * Initialize the objects.
         * @param {String} text The text to be displayed.
@@ -932,11 +946,33 @@ const Canvas = (function () {
         this.align = 'start';
       }
 
-      set width(width) { }
+      set width(width) {
+        if (this.font) {
+          const targetWidth = width;
+          const canvasWidth = this.canvas.width;
+
+          let minFontSize = 1;
+          let maxFontSize = canvasWidth;
+
+          while (maxFontSize - minFontSize > 1) {
+            const fontSize = Math.floor((minFontSize + maxFontSize) / 2);
+            const textWidth = this.getWidth(fontSize);
+            if (textWidth < targetWidth) {
+              minFontSize = fontSize;
+            } else {
+              maxFontSize = fontSize;
+            }
+          }
+
+          this.font.size = minFontSize;
+        }
+      }
       get width() {
         return this.getWidth();
       }
-      set height(height) { }
+      set height(height) {
+        if (this.font) this.font.size = height;
+      }
       get height() {
         return this.font.size;
       }
@@ -969,10 +1005,10 @@ const Canvas = (function () {
         * Returns the text width after font changes.
         * @return {Number} The total width.
         */
-      getWidth() {
+      getWidth(fontSize, fontFamily) {
         const ctx = this.#offscr_ctx;
         ctx.save();
-        ctx.font = `${this.font.size}px ${this.font.family}`;
+        ctx.font = `${fontSize ?? this.font.size}px ${fontFamily ?? this.font.family}`;
         const width = ctx.measureText(this.text).width;
         ctx.restore();
         return width;
