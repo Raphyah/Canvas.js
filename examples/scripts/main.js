@@ -1,7 +1,7 @@
 const { Viewer, TextBox, Rect, Arc, CanvasImage } = Canvas;
 
 const canvas = new Viewer();
-document.body.appendChild(canvas.dom);
+canvas.appendTo(document.body);
 canvas.setSize(canvas.dom.offsetWidth, canvas.dom.offsetHeight);
 
 const bg = new Rect(0, 0, canvas.width, canvas.height).config(rect => {
@@ -10,47 +10,29 @@ const bg = new Rect(0, 0, canvas.width, canvas.height).config(rect => {
 	rect.appendTo(canvas);
 });
 
-const baseText = new TextBox('Test', 0, 32, 32).config(txt => {
-	txt.color = 0xFFFFFF;
-	txt.baseline = 'bottom';
-	console.log(txt.__getHeight());
-	txt.appendTo(canvas);
+const set1 = new Canvas.ObjectSet(25, 25);
+set1.appendTo(canvas);
+const set2 = new Canvas.ObjectSet(25, 25);
+set2.appendTo(set1);
+const set3 = new Canvas.ObjectSet(50, 50);
+set3.appendTo(set2);
+const testRect1 = new Canvas.Rect(0, 0, 25, 25).config(rect => {
+	rect.color = 0xFF0000;
+	rect.appendTo(set1);
 });
-new TextBox('Test', baseText.getWidth() * 1, 32, 32).config(txt => {
-	txt.color = 0xFFFFFF;
-	txt.baseline = 'ideographic';
-	console.log(txt.__getHeight());
-	txt.appendTo(canvas);
+const testRect2 = new Canvas.Rect(0, 0, 25, 25).config(rect => {
+	rect.color = 0x00FF00;
+	rect.appendTo(set2);
 });
-new TextBox('Test', baseText.getWidth() * 2, 32, 32).config(txt => {
-	txt.color = 0xFFFFFF;
-	txt.__getHeight();
-	txt.appendTo(canvas);
-});
-new TextBox('Test', baseText.getWidth() * 3, 32, 32).config(txt => {
-	txt.color = 0xFFFFFF;
-	txt.baseline = 'middle';
-	console.log(txt.__getHeight());
-	txt.appendTo(canvas);
-});
-new TextBox('Test', baseText.getWidth() * 4, 32, 32).config(txt => {
-	txt.color = 0xFFFFFF;
-	txt.baseline = 'hanging';
-	console.log(txt.__getHeight());
-	txt.appendTo(canvas);
-});
-new TextBox('Test', baseText.getWidth() * 5, 32, 32).config(txt => {
-	txt.color = 0xFFFFFF;
-	txt.baseline = 'top';
-	txt.align = 'right';
-	console.log(txt.__getHeight());
-	txt.appendTo(canvas);
+const testRect3 = new Canvas.Rect(0, 0, 25, 25).config(rect => {
+	rect.color = 0x0000FF;
+	rect.appendTo(set3);
 });
 
-const textRect = new Rect(0, 32, canvas.width, 1).config(rect => {
-	rect.color = 0xFFFFFF;
-	rect.appendTo(canvas);
-});
+const testEl = new Canvas.DOMElement('input', 0, 0);
+testEl.appendTo(canvas);
+testEl.show();
+testEl.y = canvas.height - testEl.dom.offsetHeight;
 
 const ball = new Arc(-10, canvas.height / 2, 10).config(arc => {
 	arc.type = 'fill';
@@ -59,27 +41,31 @@ const ball = new Arc(-10, canvas.height / 2, 10).config(arc => {
 });
 
 const pacman = new Arc(canvas.width / 2, canvas.height / 2, 50).config(arc => {
+	const defaultColor = 0xFFFF00;
 	arc.type = 'fill';
-	arc.color = 0xFFFF00;
+	arc.color = defaultColor;
 	arc.hoverEffect = false;
 	arc.startFrom = 'left';
-	arc.whenKeyPressed = keys => {
-		if (keys.w) {
-			arc.startFrom = 'top';
-		} else if (keys.d) {
-			arc.startFrom = 'right';
-		} else if (keys.s) {
-			arc.startFrom = 'bottom'
-		} else if (keys.a) {
-			arc.startFrom = 'left';
-		}
-	}
 	arc.whenLeftClicked = function() {
 		arc.color = Math.floor(Math.random() * 0xFFFFFF);
+	}
+	arc.whenRightClicked = function() {
+		arc.color = defaultColor;
 	}
 	arc.open = true;
 	arc.appendTo(canvas);
 });
+canvas.whenKeyPressed = keys => {
+	if (keys.KeyW) {
+		pacman.startFrom = 'top';
+	} else if (keys.KeyD) {
+		pacman.startFrom = 'right';
+	} else if (keys.KeyS) {
+		pacman.startFrom = 'bottom'
+	} else if (keys.KeyA) {
+		pacman.startFrom = 'left';
+	}
+}
 
 function update(ts) {
 	const width = canvas.dom.offsetWidth;
