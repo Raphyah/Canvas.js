@@ -57,11 +57,11 @@ const pacman = new Arc(canvas.width / 2, canvas.height / 2, 50).config(arc => {
 });
 canvas.whenKeyPressed = keys => {
 	if (keys.KeyW) {
-		pacman.startFrom = 'top';
+		// pacman.startFrom = 'top';
 	} else if (keys.KeyD) {
 		pacman.startFrom = 'right';
 	} else if (keys.KeyS) {
-		pacman.startFrom = 'bottom'
+		// pacman.startFrom = 'bottom'
 	} else if (keys.KeyA) {
 		pacman.startFrom = 'left';
 	}
@@ -77,8 +77,13 @@ function update(ts) {
 		pacman.y = canvas.height / 2;
 		ball.y = canvas.height / 2;
 	}
-	if (ball.x < canvas.width / 2) ball.x+=4;
-	else if (ball.x > canvas.width / 2) ball.x = -10;
+	if (pacman.startFrom === 'right') {
+		if (ball.x > -ball.radius) ball.x-=4;
+	}
+	else if (pacman.startFrom === 'left') {
+		if (ball.x < canvas.width / 2) ball.x+=4;
+		else if (ball.x > canvas.width / 2) ball.x = -ball.radius;
+	}
 	if (pacman.open) {
 		if (pacman.start < Math.PI * 0.25) {
 			pacman.start += Math.PI * (2 / 90);
