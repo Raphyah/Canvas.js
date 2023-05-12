@@ -31,7 +31,7 @@ const testRect3 = new Canvas.Rect(0, 0, 25, 25).config(rect => {
 
 const testEl = new Canvas.DOMElement('input', 0, 0);
 testEl.appendTo(canvas);
-testEl.show();
+// testEl.show();
 testEl.y = canvas.height - testEl.dom.offsetHeight;
 
 const ball = new Arc(-10, canvas.height / 2, 10).config(arc => {
@@ -65,6 +65,21 @@ canvas.whenKeyPressed = keys => {
 	} else if (keys.KeyA) {
 		pacman.startFrom = 'left';
 	}
+}
+
+const positions = ['end', 'right', 'center', 'left', 'start'];
+for (let index in positions) {
+	const value = positions[index];
+	new Canvas.TextBox('GitHub').config(text => {
+		text.color = 0xFFFFFF;
+		text.align = value;
+		text.direction = 'rtl'
+		text.setPos(canvas.width / 2, canvas.height - ((text.font.size) * (parseInt(index) + 1)));
+		text.appendTo(canvas);
+		text.whenLeftClicked = function () {
+			console.log('clicked ' + value);
+		}
+	});
 }
 
 function update(ts) {

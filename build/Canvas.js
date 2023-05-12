@@ -1041,6 +1041,7 @@ const Canvas = (function () {
       };
       this.baseline = 'alphabetic';
       this.align = 'start';
+      this.direction = 'rtl';
     }
 
     set width(width) {
@@ -1080,9 +1081,27 @@ const Canvas = (function () {
     getTrueXPos() {
       const ctx = this.#offscr_ctx;
       ctx.save();
+      ctx.font = `${this.font.size}px ${this.font.family}`;
+      ctx.textBaseline = this.baseline;
+      ctx.textAlign = this.align;
+
+      const metrics = ctx.measureText(this.text);
       let x = super.getTrueXPos();
+      if (this.align === 'center') {
+        x -= metrics.width / 2;
+      } else if (this.align === 'right') {
+        x -= metrics.width;
+      } else if (this.align === 'start') {
+        if (this.direction === 'rtl') {
+          x -= metrics.width;
+        }
+      } else if (this.align === 'end') {
+        if (this.direction != 'rtl') {
+          x -= metrics.width;
+        }
+      }
       ctx.restore();
-      return this.x + x;
+      return x;
     }
 
     getTrueYPos() {
@@ -1214,6 +1233,7 @@ const Canvas = (function () {
       ctx.font = `${this.font.size}px ${this.font.family}`;
       ctx.textBaseline = this.baseline;
       ctx.textAlign = this.align;
+      ctx.direction = this.direction;
       ctx[`${this.type}Text`](this.text, super.getTrueXPos(), super.getTrueYPos());
       ctx.restore();
     }
