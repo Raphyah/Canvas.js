@@ -1041,7 +1041,7 @@ const Canvas = (function () {
       };
       this.baseline = 'alphabetic';
       this.align = 'start';
-      this.direction = 'rtl';
+      this.direction = 'ltr';
     }
 
     set width(width) {
