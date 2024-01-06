@@ -26,9 +26,10 @@ const Canvas = (function () {
   function __add(...elements) {
     elements.forEach(element => {
       if (element instanceof CanvasObject) {
-        this.addChild(element);
+        /*this.addChild(element);
         element.defineSet(this);
-        element.defineCanvas(this);
+        element.defineCanvas(this);*/
+        element.appendTo(this);
       }
     });
   }
@@ -38,12 +39,27 @@ const Canvas = (function () {
   function __renderSet() {
     this.children.forEach(element => {
       if (element.constructor === ObjectSet ||
-        (element.x + element.width) >= 0 && (element.y + element.height) >= 0 &&
-        (element.x) <= this.canvas.width && (element.y) <= this.canvas.height) {
+        (element.getTrueXPos() + element.getWidth()) >= 0 && (element.getTrueYPos() + element.getHeight()) >= 0 &&
+        (element.getTrueXPos()) <= this.canvas.width && (element.getTrueYPos()) <= this.canvas.height) {
         element.render();
       }
     });
   }
+
+  /***********************************
+   ************** BEGIN **************
+   ********** Error classes **********
+   ***********************************/
+  class TimedOutError extends Error {
+    constructor(...args) {
+      super(...args);
+      this.name = 'TimedOutError';
+    }
+  }
+  /***********************************
+   *************** END ***************
+   ********** Error classes **********
+   ***********************************/
 
   /**
    * Create a new "Viewer".
@@ -464,6 +480,8 @@ const Canvas = (function () {
       this.color = 0;
       this.lastTimeRendered = 2;
       this.maxTimeWithoutRendering = 65535;
+      this.rotation = 0;
+      this.orbit = 0;
       CanvasObject.list.push(this);
     }
 
@@ -477,13 +495,13 @@ const Canvas = (function () {
 
     getTrueXPos() {
       let masterX = 0;
-      if (this.objectSet) masterX = this.objectSet.getTrueXPos();
+      if (this.objectSet?.getTrueXPos) masterX = this.objectSet.getTrueXPos();
       return this.x + masterX;
     }
 
     getTrueYPos() {
       let masterY = 0;
-      if (this.objectSet) masterY = this.objectSet.getTrueYPos();
+      if (this.objectSet?.getTrueYPos) masterY = this.objectSet.getTrueYPos();
       return this.y + masterY;
     }
 
@@ -564,7 +582,7 @@ const Canvas = (function () {
      * a
      * @param {Canvas} canvas a
      */
-    render(canvas) {
+    applyHoverEffect(canvas) {
       this.lastTimeRendered = 0;
       const ctx = canvas.context;
       const useHoverColor = this.isUnder() && this.hoverEffect !== false;
@@ -589,8 +607,8 @@ const Canvas = (function () {
         }
       }
       ctx[`${this.type}Style`] = useHoverColor === false ?
-        Color.fromInt(this.color) :
-        Color.fromInt(hoverValue);
+        Color.hexFromInt(this.color) :
+        Color.hexFromInt(hoverValue);
     }
 
     hit(target) {
@@ -694,7 +712,7 @@ const Canvas = (function () {
   class Color {
     /**
      * Initialize constructor.
-     * @param {*} value Initialize.
+     * @param {*} value The value of the color to be used. It can be a RGB or RGBA string, a hexadecimal color string or an integer.
      */
     constructor(value) {
       this.value = Color.getColor(value);
@@ -702,11 +720,12 @@ const Canvas = (function () {
     }
 
     /**
-     * a
-     * @param {String} value a
-     * @return {Object} a
+     * Converts a hexadecimal color string to an object.
+     * @param {String} value The hexadecimal color code string.
+     * @return {Object} Object with the values of red, green, blue and alpha.
      */
     static hexToObject(value) {
+      // TODO: change the code so it'll be able to convert integers too, or simply create a new static function for it.
       let red, green, blue, alpha;
       const hex = new RegExp('#' +
         '([0-9a-fA-F]{2})' +
@@ -726,38 +745,28 @@ const Canvas = (function () {
     }
 
     /**
-     * a
-     * @param {String} value a
-     * @return {Object} a
+     * Converts a RGB or RGBA string to an object.
+     * @param {String} value The RGB or RGBA string.
+     * @return {Object} Object with the values of red, green, blue and alpha.
      */
     static rgbToObject(value) {
-      let red; let green; let blue; let alpha;
+      const rgbaPattern = /^rgba?\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})(?:\s*,\s*((?:1|0(?:\.\d*)?|\.\d+)))?\s*\)$/;
+      const matches = rgbaPattern.exec(value);
 
-      const rgb = /^rgba?\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})(?:\s*,\s*(1|0?\.\d+))?\s*\)$/;
-      if (rgb.test(value)) {
-        const captured = value.match(rgb);
+      if (matches) {
+        const red = Math.min(255, Math.max(0, parseInt(matches[1], 10)));
+        const green = Math.min(255, Math.max(0, parseInt(matches[2], 10)));
+        const blue = Math.min(255, Math.max(0, parseInt(matches[3], 10)));
+        const alpha = Math.min(1, Math.max(0, parseFloat(matches[4])));
 
-        red = parseInt(captured[1]);
-        if (red > 255) red = 255;
-        else if (red < 0) red = 0;
-        green = parseInt(captured[2]);
-        if (green > 255) green = 255;
-        else if (green < 0) green = 0;
-        blue = parseInt(captured[3]);
-        if (blue > 255) blue = 255;
-        else if (blue < 0) blue = 0;
-        alpha = parseFloat(captured[4] || 1);
-        if (alpha > 1) alpha = 1;
-        else if (alpha < 0) alpha = 0;
-      } else return false;
-
-      return { red, green, blue, alpha };
+        return { red, green, blue, alpha };
+      }
     }
 
     /**
-     * a
-     * @param {Object} value a
-     * @return {Number}
+     * Converts an object to an integer matching the color.
+     * @param {Object} value An object with the red, green and blue channels.
+     * @return {Number} A integer between 0 and 16777215.
      */
     static objectToNumber(value) {
       return (256 ** 2 * value.red) % (256 ** 3) +
@@ -767,11 +776,20 @@ const Canvas = (function () {
 
     /**
      * Get color from integer.
-     * @param {Integer} value The value to be converted.
-     * @return {String} The hex color
+     * @param {Integer} value A integer between 0 and 16777215 to be converted.
+     * @return {String} The hexadecimal code value matching the value.
      */
-    static fromInt(value) {
+    static hexFromInt(value) {
       return '#' + ('000000' + value.toString(16)).slice(-6);
+    }
+
+    static objectFromInt(value) {
+      const red = Math.floor(value / (256 ** 3));
+      const green = Math.floor((value % (256 ** 3)) / (256 ** 2));
+      const blue = Math.floor((value % (256 ** 2)) / 256);
+      const alpha = ((value % 256) / 255).toFixed(2);
+
+      return { red, green, blue, alpha };
     }
 
     /**
@@ -802,7 +820,7 @@ const Canvas = (function () {
       if (value.constructor === String) {
         rgba = Color.rgbToObject(value) || Color.hexToObject(value);
       } else if (value.constructor === Number) {
-        rgba = Color.hexToObject(Color.fromInt(value));
+        rgba = Color.hexToObject(Color.hexFromInt(value));
       }
       const red = rgba.red, green = rgba.green, blue = rgba.blue, alpha = rgba.alpha;
       return { red, green, blue, alpha };
@@ -836,7 +854,7 @@ const Canvas = (function () {
       ctx.save();
       ctx.lineWidth = this.lineWidth;
 
-      super.render(this.canvas);
+      super.applyHoverEffect(this.canvas);
 
       ctx.beginPath();
       ctx.rect(super.getTrueXPos(), super.getTrueYPos(), this.width, this.height);
@@ -985,7 +1003,7 @@ const Canvas = (function () {
       ctx.save();
       ctx.lineWidth = this.lineWidth;
 
-      super.render(this.canvas);
+      super.applyHoverEffect(this.canvas);
 
       ctx.beginPath();
       if (this.lineToCenter) ctx.lineTo(super.getTrueXPos(), super.getTrueYPos());
@@ -1228,7 +1246,7 @@ const Canvas = (function () {
       const ctx = this.canvas.context;
       ctx.save();
 
-      super.render(this.canvas);
+      super.applyHoverEffect(this.canvas);
 
       ctx.font = `${this.font.size}px ${this.font.family}`;
       ctx.textBaseline = this.baseline;
@@ -1243,6 +1261,7 @@ const Canvas = (function () {
    * Used to create a new Image
    */
   class CanvasImage extends ClickableObject {
+    maxLoopIterations = 100;
     /**
      * Initialize the objects.
      * @param {Number} x The "x" position of the element.
@@ -1254,9 +1273,23 @@ const Canvas = (function () {
     constructor(image, x, y, width, height) {
       super(x, y, width, height);
       this.image = new Image();
-      this.image.src = image;
+      if (image) {
+        if (image.constructor === HTMLImageElement) {
+          this.image = image;
+        } else if (image.constructor === SpriteSet) {
+          this.sprites = image;
+          this.changeImageElement(this.sprites.getImage());
+        } else if (image.constructor === String) {
+          this.image.src = image;
+        }
+      }
       this.lineWidth = 1.0;
       this.type = 'stroke';
+    }
+
+    changeImageElement(image) {
+      if (image.constructor != HTMLImageElement) return;
+      this.image = image;
     }
 
     /**
@@ -1264,7 +1297,48 @@ const Canvas = (function () {
      * @param {Function} callback The action to do when loaded.
      */
     set onload(callback) {
-      this.image.onload = callback;
+      if (this.image) {
+        if (this.image.constructor === HTMLImageElement) {
+          this.image.onload = callback;
+        }
+      }
+    }
+
+    spritesReady() { return this.sprites.setReady() }
+
+    step(frames = 1) {
+      if (!this.sprites) return;
+      this.sprites.step(frames);
+      this.changeImageElement(this.sprites.getImage());
+    }
+    random() {
+      return new Promise((resolve, reject) => {
+        this.sprites.random()
+          .then(() => {
+            this.changeImageElement(this.sprites.getImage());
+            resolve(true);
+          })
+          .catch(error => reject(error));
+      })
+    }
+
+    imageReady() {
+      return new Promise((resolve, reject) => {
+        let timesLooped = 0;
+        const checker = () => {
+          if (this.image?.naturalWidth && this.image?.naturalHeight) {
+            clearInterval(interval);
+            resolve(true);
+          }
+          timesLooped++;
+
+          if (timesLooped > this.maxLoopIterations) {
+            clearInterval(interval);
+            reject(new TimedOutError(`Loop stack exceed the max amount of maxLoopIterations (${this.maxLoopIterations}).`));
+          }
+        }
+        const interval = setInterval(checker, 1000 / 15);
+      });
     }
 
     /**
@@ -1330,6 +1404,95 @@ const Canvas = (function () {
         set: function (value) {
           this.image[x] = value;
         }
+      });
+    }
+  }
+
+  class SpriteSet {
+    maxLoopIterations = 100;
+    #currentSet;
+    #currentImage;
+    /**
+     * Add a set of images to be displayed on a CanvasImage object.
+     * @param {Object} spriteSet The images to be added to the set.
+     */
+    constructor(spriteSet) {
+      this.set = {};
+      this.addSet(spriteSet);
+    }
+    get currImg() {
+      return this.#currentImage;
+    }
+    /**
+     * Add sets of sprites to the SpriteSet.
+     * @param {Object} spriteSet The sets to be added.
+     */
+    addSet(spriteSet) {
+      for (let animation in spriteSet) {
+        if (!this.#currentSet) this.#currentSet = animation;
+        this.set[animation] = [];
+        for (let image of spriteSet[animation]) {
+          this.insert(animation, image);
+        }
+      }
+    }
+    insert(animation, image) {
+      if (!this.#currentImage) this.#currentImage = 0;
+      if (image.constructor === HTMLImageElement) {
+        this.set[animation].push(image);
+      } else {
+        const el = new Image();
+        el.src = image;
+        this.set[animation].push(el);
+      }
+    }
+    imgSetExists() {
+      return this.set?.[this.#currentSet]?.[this.#currentImage];
+    }
+    getImage() {
+      if (!this.imgSetExists()) return false;
+      return this.set[this.#currentSet][this.#currentImage];
+    }
+    setReady() {
+      // const imgSetExists = this.imgSetExists;
+      return new Promise((resolve, reject) => {
+        let timesLooped = 0;
+        const checker = () => {
+          if (typeof this.#currentImage === 'number' && this.imgSetExists()) {
+            clearInterval(interval);
+            resolve(true);
+          }
+          timesLooped++;
+
+          if (timesLooped > this.maxLoopIterations) {
+            clearInterval(interval);
+            reject(new TimedOutError(`Loop stack exceed the max amount of ${this.maxLoopIterations}.`));
+          }
+        }
+        const interval = setInterval(checker, 1000 / 15);
+      });
+    }
+    step(frames = 1) {
+      this.setReady()
+        .then(() => {
+          this.#currentImage += frames;
+          const totalItems = this.set[this.#currentSet].length;
+          if (totalItems <= this.#currentImage) {
+            this.#currentImage -= totalItems;
+          } else if (this.#currentImage < 0) {
+            this.#currentImage += totalItems;
+          }
+        })
+        .catch();
+    }
+    random() {
+      return new Promise((resolve, reject) => {
+        this.setReady()
+        .then(() => {
+          this.#currentImage = Math.floor(Math.random() * this.set[this.#currentSet].length);
+          resolve(this.#currentImage);
+        })
+        .catch(error => reject(error));
       });
     }
   }
@@ -1415,10 +1578,10 @@ const Canvas = (function () {
   });
 
   class DOMElement {
-    canvas = undefined;
     #x;
     #y;
     constructor(element, x, y) {
+      this.canvas = undefined;
       this.#x = x;
       this.#y = y;
       this.dom = document.createElement(element);
@@ -1469,6 +1632,7 @@ const Canvas = (function () {
     Arc,
     TextBox,
     CanvasImage,
+    SpriteSet,
     ObjectSet,
     DOMElement
   }

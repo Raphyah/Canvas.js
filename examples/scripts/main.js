@@ -82,7 +82,26 @@ for (let index in positions) {
 	});
 }
 
+const testSpriteSet = new Canvas.SpriteSet({
+	'idle': [
+		'https://cdn.pixabay.com/photo/2023/05/08/15/14/dogwood-7978952_960_720.jpg',
+		'https://cdn.pixabay.com/photo/2023/04/11/11/21/butterfly-7916963_960_720.jpg',
+		'https://cdn.pixabay.com/photo/2023/04/23/16/08/flower-7946074_960_720.jpg'
+	]
+});
+const testImage = new Canvas.CanvasImage(testSpriteSet, 0, 0, 100, 75);
+testImage.whenReady(function() {
+	testImage.getWidth();
+});
+testImage.appendTo(canvas);
+
+let frame = 0;
+
 function update(ts) {
+	frame++;
+	if (frame%120 === 0) {
+		testImage.random();
+	}
 	const width = canvas.dom.offsetWidth;
 	const height = canvas.dom.offsetHeight;
 	if (canvas.width !== width || canvas.height !== height) {
